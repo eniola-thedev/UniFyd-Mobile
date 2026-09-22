@@ -1,6 +1,5 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Alert, Linking, Pressable, ScrollView, Share, Text, View } from "react-native";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -22,19 +21,20 @@ import {
   Bug,
   GraduationCap,
   Heart,
+  Sun,
+  Fingerprint,
+  ScanFace,
 } from "lucide-react-native";
 import { supabase } from "@/lib/supabase";
 import { useSession } from "@/hooks/auth-context";
+import { useTheme, type ThemeMode } from "@/hooks/use-theme";
 import { useToast } from "@/components/ui/toast";
 import { usePushNotifications } from "@/hooks/use-push-notifications";
+import { useBiometrics } from "@/hooks/use-biometrics";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, Switch } from "@/components/ui/card";
 import { universityLabel } from "@/lib/constants";
-
-type Appearance = "light" | "dark" | "system";
-
-const preferenceKey = "unifyd-settings-appearance";
 
 function SettingRow({
   icon: Icon,
@@ -77,7 +77,8 @@ export default function Settings() {
   const toast = useToast();
   const { user } = useSession();
   const { enabled: notificationsEnabled, registering: registeringNotifications, enableNotifications } = usePushNotifications(user?.id);
-  const [appearance, setAppearance] = useState<Appearance>("system");
+  const { mode: appearance, resolved, setMode: setAppearance } = useTheme();
+  const biometrics = useBiometrics();
   const [assignmentReminders, setAssignmentReminders] = useState(true);
   const [examReminders, setExamReminders] = useState(true);
   const [announcements, setAnnouncements] = useState(true);
@@ -93,17 +94,31 @@ export default function Settings() {
     },
   });
 
-  useEffect(() => {
-    AsyncStorage.getItem(preferenceKey).then((value) => {
-      if (value === "light" || value === "dark" || value === "system") setAppearance(value);
-    });
-  }, []);
+  async function toggleBiometric(next: boolean) {
+    if (next) {
+      if (!biometrics.isAvailable) {
+        toast.error("Face ID or fingerprint is not available on this device");
+        return;
+      }
+      const ok = await biometrics.authenticate("Enable biometric sign-in");
+      if (!ok) return;
+      if (!user?.email) {
+        toast.error("No email is attached to this account");
+        return;
+      }
+      await biometrics.enable(user.email);
+      toast.success(`${biometrics.getBiometricLabel(biometrics.biometricType)} enabled for sign-in`);
+    } else {
+      await biometrics.disable();
+      toast.success("Biometric sign-in disabled");
+    }
+  }
 
-  async function chooseAppearance(value: Appearance) {
+  async function chooseAppearance(value: ThemeMode) {
     setAppearance(value);
-    await AsyncStorage.setItem(preferenceKey, value);
-    if (value === "dark") toast.success("Dark theme preference saved; full dark theme is coming soon");
-    else toast.success(`${value[0].toUpperCase()}${value.slice(1)} theme preference saved`);
+    if (value === "dark") toast.success("Dark theme enabled");
+    else if (value === "light") toast.success("Light theme enabled");
+    else toast.success("Theme follows system");
   }
 
   function showComingSoon(label: string) {
@@ -154,12 +169,31 @@ export default function Settings() {
         <SettingRow icon={BookOpen} label="Exam reminders" trailing={<Switch value={examReminders} onValueChange={setExamReminders} />} />
         <SettingRow icon={Bell} label="Announcements" trailing={<Switch value={announcements} onValueChange={setAnnouncements} />} />
         <SettingRow icon={Bell} label="Messages" trailing={<Switch value={messages} onValueChange={setMessages} />} />
-        <SettingRow icon={Moon} label="Appearance" detail={`${appearance[0].toUpperCase()}${appearance.slice(1)}`} onPress={() => Alert.alert("Appearance", "Choose your preferred appearance.", [
-          { text: "Light", onPress: () => void chooseAppearance("light") },
-          { text: "Dark", onPress: () => void chooseAppearance("dark") },
-          { text: "System", onPress: () => void chooseAppearance("system") },
-          { text: "Cancel", style: "cancel" },
-        ])} />
+        <SettingRow
+          icon={resolved === "dark" ? Moon : Sun}
+          label="Appearance"
+          detail={
+            appearance === "system"
+              ? `Follows system (${resolved === "dark" ? "Dark" : "Light"})`
+              : appearance === "dark"
+                ? "Dark theme"
+                : "Light theme"
+          }
+          onPress={() =>
+            Alert.alert("Appearance", "Choose your preferred appearance.", [
+              { text: "Light", onPress: () => void chooseAppearance("light") },
+              { text: "Dark", onPress: () => void chooseAppearance("dark") },
+              { text: "System", onPress: () => void chooseAppearance("system") },
+              { text: "Cancel", style: "cancel" },
+            ])
+          }
+          trailing={
+            <Switch
+              value={resolved === "dark"}
+              onValueChange={(next) => void chooseAppearance(next ? "dark" : "light")}
+            />
+          }
+        />
         <SettingRow icon={Globe} label="Language" detail="English" onPress={() => showComingSoon("Additional languages")} />
         <SettingRow icon={Smartphone} label="Data usage" detail="Standard image quality" onPress={() => showComingSoon("Data usage controls")} />
       </Section>
@@ -188,9 +222,27 @@ export default function Settings() {
       </Section>
 
       <Section title="Privacy & security">
-        <SettingRow icon={Shield} label="Privacy settings" onPress={() => showComingSoon("Privacy settings")} />
-        <SettingRow icon={UserRound} label="Profile visibility" detail="Visible to marketplace users" onPress={() => showComingSoon("Profile visibility controls")} />
-        <SettingRow icon={Shield} label="Security" detail="Your session is protected by Supabase Auth" onPress={() => showComingSoon("Security settings")} />
+        <SettingRow icon={Shield} label="Privacy settings" onPress={() => router.push("/privacy-settings")} />
+        <SettingRow icon={UserRound} label="Profile visibility" detail="Visible to marketplace users" onPress={() => router.push("/privacy-settings")} />
+        <SettingRow icon={Shield} label="Security" detail="Your session is protected by Supabase Auth" onPress={() => router.push("/privacy-settings")} />
+        <SettingRow
+          icon={biometrics.biometricType === "FACE_ID" || biometrics.biometricType === "FACE_RECOGNITION" ? ScanFace : Fingerprint}
+          label="Biometric sign-in"
+          detail={
+            !biometrics.isAvailable
+              ? "Not available on this device"
+              : biometrics.isEnabled
+                ? `Enabled (${biometrics.getBiometricLabel(biometrics.biometricType)})`
+                : `Use ${biometrics.getBiometricLabel(biometrics.biometricType)} to sign in`
+          }
+          trailing={
+            <Switch
+              value={biometrics.isEnabled}
+              onValueChange={toggleBiometric}
+              disabled={!biometrics.isAvailable}
+            />
+          }
+        />
         <SettingRow icon={Smartphone} label="Active sessions" onPress={() => showComingSoon("Active session management")} />
         <SettingRow icon={Bug} label="Report a problem" onPress={reportProblem} />
       </Section>
@@ -203,9 +255,9 @@ export default function Settings() {
       </Section>
 
       <Section title="About">
-        <SettingRow icon={Info} label="About UniFyd" onPress={() => showComingSoon("About UniFyd")} />
-        <SettingRow icon={FileText} label="Terms of service" onPress={() => showComingSoon("Terms of service")} />
-        <SettingRow icon={Shield} label="Privacy policy" onPress={() => showComingSoon("Privacy policy")} />
+        <SettingRow icon={Info} label="About UniFyd" onPress={() => router.push("/about")} />
+        <SettingRow icon={FileText} label="Terms of service" onPress={() => router.push("/terms-of-service")} />
+        <SettingRow icon={Shield} label="Privacy policy" onPress={() => router.push("/privacy-policy")} />
         <SettingRow icon={Info} label="App version" detail="1.0.0" />
       </Section>
 

@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
 import * as ImagePicker from "expo-image-picker";
+import * as WebBrowser from "expo-web-browser";
 import { X } from "lucide-react-native";
 import { z } from "zod";
 import { supabase } from "@/lib/supabase";
@@ -13,12 +14,13 @@ import { Button } from "@/components/ui/button";
 import { Input, Textarea } from "@/components/ui/input";
 import { Label, Switch, Card } from "@/components/ui/card";
 import { Select } from "@/components/ui/select";
-import { CATEGORIES, CONDITIONS, LISTING_PLANS, LIVING_TYPES, UNIVERSITIES, formatNaira } from "@/lib/constants";
+import { CATEGORIES, COMING_SOON_LISTING_PLANS, CONDITIONS, LISTING_PLANS, LIVING_TYPES, UNIVERSITIES, formatNaira } from "@/lib/constants";
+import type { Database } from "@/lib/database.types";
 
-type Uni = "UNILORIN" | "AL_HIKMAH" | "KWASU";
+type Uni = "UNILORIN" | "AL_HIKMAH" | "KWASU" | "UNIOSUN";
 type Living = "SCHOOL_HOSTEL" | "OFF_CAMPUS_HOSTEL" | "PRIVATE_APARTMENT";
 type Cond = "NEW" | "LIKE_NEW" | "GOOD" | "FAIR";
-type Plan = "BASIC" | "FEATURED" | "CLEARANCE";
+type Plan = "FREE" | "BASIC" | "FEATURED" | "CLEARANCE";
 
 const MAX_IMAGES = 5;
 
@@ -28,7 +30,7 @@ const schema = z.object({
   category: z.string().min(1, "Pick a category"),
   condition: z.enum(["NEW", "LIKE_NEW", "GOOD", "FAIR"]),
   price: z.coerce.number().positive("Enter a price above zero").max(100_000_000),
-  university: z.enum(["UNILORIN", "AL_HIKMAH", "KWASU"]),
+  university: z.enum(["UNILORIN", "AL_HIKMAH", "KWASU", "UNIOSUN"]),
   living_type: z.enum(["SCHOOL_HOSTEL", "OFF_CAMPUS_HOSTEL", "PRIVATE_APARTMENT"]),
   hostel_area: z.string().trim().min(2, "Say where the item can be seen").max(80),
 });
@@ -63,7 +65,7 @@ export default function Sell() {
     hostel_area: "",
   });
   const [negotiable, setNegotiable] = useState(true);
-  const [plan, setPlan] = useState<Plan>("BASIC");
+  const [plan, setPlan] = useState<Plan>("FREE");
   const [images, setImages] = useState<ImagePicker.ImagePickerAsset[]>([]);
   const [saving, setSaving] = useState(false);
   const set = (k: keyof typeof form, val: string) => setForm((f) => ({ ...f, [k]: val }));
@@ -71,6 +73,20 @@ export default function Sell() {
   useEffect(() => {
     if (profile?.university) setForm((f) => ({ ...f, university: profile.university as Uni }));
   }, [profile]);
+
+  const { data: freeListingEligible } = useQuery({
+    queryKey: ["free-listing-eligible", user?.id],
+    enabled: !!user,
+    queryFn: async () => {
+      const { count, error } = await supabase.from("listings").select("id", { count: "exact", head: true }).eq("seller_id", user!.id);
+      if (error) throw error;
+      return (count ?? 0) === 0;
+    },
+  });
+
+  useEffect(() => {
+    if (freeListingEligible === false && plan === "FREE") setPlan("BASIC");
+  }, [freeListingEligible, plan]);
 
   async function pickImages() {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -124,7 +140,7 @@ export default function Sell() {
           living_type: parsed.data.living_type,
           hostel_area: parsed.data.hostel_area,
           negotiable,
-          plan,
+          plan: plan as Database["public"]["Enums"]["listing_plan"],
           is_clearance: plan === "CLEARANCE",
           status: "PAYMENT_PENDING",
           images: paths,
@@ -133,7 +149,26 @@ export default function Sell() {
         .single();
       if (error) throw error;
 
-      toast.success("Listing saved. Payment for your plan is the next step.");
+      const { data: checkout, error: checkoutError } = await supabase.functions.invoke("create-listing-payment", {
+        body: { listingId: data.id },
+      });
+      if (checkoutError) throw checkoutError;
+      if (checkout?.free) {
+        toast.success("Your free listing is now live for 3 days.");
+      } else if (!checkout?.authorizationUrl || !checkout?.reference || !checkout?.returnUrl) {
+        throw new Error("Could not start the payment checkout");
+      } else {
+        const result = await WebBrowser.openAuthSessionAsync(checkout.authorizationUrl, checkout.returnUrl);
+        if (result.type === "success") {
+          const { error: verificationError } = await supabase.functions.invoke("verify-listing-payment", {
+            body: { reference: checkout.reference },
+          });
+          if (verificationError) throw verificationError;
+          toast.success("Payment confirmed. Your listing is now live.");
+        } else {
+          toast.success("Listing saved. Complete payment whenever you are ready.");
+        }
+      }
       router.push(`/listing/${data.id}`);
       setForm({ title: "", description: "", category: "", condition: "GOOD", price: "", university: form.university, living_type: "SCHOOL_HOSTEL", hostel_area: "" });
       setImages([]);
@@ -261,8 +296,9 @@ export default function Sell() {
         {LISTING_PLANS.map((p) => (
           <Pressable
             key={p.value}
-            onPress={() => setPlan(p.value)}
-            className={`rounded-xl border p-4 ${plan === p.value ? "border-primary bg-accent" : "border-border"}`}
+            onPress={() => p.value !== "FREE" || freeListingEligible !== false ? setPlan(p.value) : undefined}
+            disabled={p.value === "FREE" && freeListingEligible === false}
+            className={`rounded-xl border p-4 ${plan === p.value ? "border-primary bg-accent" : "border-border"} ${p.value === "FREE" && freeListingEligible === false ? "opacity-50" : ""}`}
           >
             <View className="flex-row items-center justify-between">
               <Text className="font-medium text-foreground">{p.name}</Text>
@@ -272,9 +308,16 @@ export default function Sell() {
           </Pressable>
         ))}
         <Text className="text-sm text-muted-foreground">
-          Your listing is saved and waits for payment of {formatNaira(selectedPlan.price)}. It becomes visible to buyers once payment is
-          confirmed.
+          {selectedPlan.price === 0
+            ? "Free listings are for new users only, limited to one item, and become visible immediately for 3 days."
+            : `Your listing is saved and waits for payment of ${formatNaira(selectedPlan.price)}. It becomes visible to buyers once payment is confirmed.`}
         </Text>
+        {COMING_SOON_LISTING_PLANS.map((item) => (
+          <View key={item.name} className="rounded-xl border border-border bg-muted p-4 opacity-70">
+            <View className="flex-row items-center justify-between"><Text className="font-medium text-foreground">{item.name}</Text><Text className="rounded-full bg-white px-2 py-1 text-xs font-semibold text-muted-foreground">Coming soon</Text></View>
+            <Text className="mt-1 text-sm text-muted-foreground">{item.description}</Text>
+          </View>
+        ))}
       </Card>
 
       <View className="mt-6 flex-row gap-3">

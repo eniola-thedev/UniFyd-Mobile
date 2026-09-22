@@ -1,0 +1,72 @@
+-- Welcome email automation for new signups.
+-- Two approaches are supported; pick one.
+
+-- ============================================================================
+-- APPROACH A: Database webhook (recommended, matches notify-new-message pattern)
+-- ============================================================================
+-- In the Supabase Dashboard, create a Database Webhook:
+--   Table:   auth.users
+--   Events:  INSERT
+--   Method:  POST
+--   URL:     https://<PROJECT_REF>.supabase.co/functions/v1/send-welcome-email
+--   Header:  x-webhook-secret: <your-secret>
+--
+-- Then deploy the function and set secrets:
+--   supabase functions deploy send-welcome-email --no-verify-jwt
+--   supabase secrets set RESEND_API_KEY="re_xxx"
+--   supabase secrets set WELCOME_EMAIL_FROM="UniFyd <noreply@unifyd.app>"
+--   supabase secrets set WELCOME_WEBHOOK_SECRET="<your-secret>"
+
+-- ============================================================================
+-- APPROACH B: pg_net trigger (self-contained, no dashboard steps)
+-- ============================================================================
+-- Uncomment the block below to fire the edge function directly from a trigger.
+-- Requires the pg_net extension (available by default on Supabase).
+
+-- create extension if not exists "pg_net";
+
+-- create or replace function public.send_welcome_email_on_signup()
+-- returns trigger
+-- language plpgsql
+-- as $$
+-- declare
+--   user_email text;
+--   user_name text;
+--   user_uni text;
+--   payload jsonb;
+-- begin
+--   user_email := new.email;
+--   user_name := coalesce(new.raw_user_meta_data->>'full_name', 'there');
+--   user_uni := coalesce(new.raw_user_meta_data->>'university', 'your campus');
+--
+--   payload := jsonb_build_object(
+--     'id', new.id,
+--     'email', user_email,
+--     'raw_user_meta_data', new.raw_user_meta_data
+--   );
+--
+--   -- Fire-and-forget; never block signup on email delivery.
+--   begin
+--     select net.http_post(
+--       url := 'https://YOUR_PROJECT_REF.supabase.co/functions/v1/send-welcome-email',
+--       headers := jsonb_build_object(
+--         'Content-Type', 'application/json',
+--         'x-webhook-secret', 'YOUR_WEBHOOK_SECRET'
+--       ),
+--       body := payload
+--     );
+--   exception when others then
+--     -- Swallow errors so signup is never blocked.
+--     null;
+--   end;
+--
+--   return new;
+-- end;
+-- $$;
+
+-- drop trigger if exists on_user_signup_welcome_email on auth.users;
+-- create trigger on_user_signup_welcome_email
+--   after insert
+--   on auth.users
+--   for each row
+--   execute procedure public.send_welcome_email_on_signup();

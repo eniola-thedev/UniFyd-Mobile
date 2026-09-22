@@ -2,6 +2,7 @@ export const UNIVERSITIES = [
   { value: "UNILORIN", label: "University of Ilorin" },
   { value: "AL_HIKMAH", label: "Al-Hikmah University" },
   { value: "KWASU", label: "Kwara State University" },
+  { value: "UNIOSUN", label: "Osun State University" },
 ] as const;
 
 export const LIVING_TYPES = [
@@ -30,24 +31,35 @@ export const ALL_CATEGORIES = CATEGORIES.flatMap((c) => c.items);
 
 export const LISTING_PLANS = [
   {
+    value: "FREE" as const,
+    name: "Free Listing",
+    price: 0,
+    perks: ["New users only", "One item maximum", "Visible for 3 days"],
+  },
+  {
     value: "BASIC" as const,
     name: "Basic Listing",
-    price: 200,
-    perks: ["Visible for 30 days", "Standard search ranking"],
+    price: 300,
+    perks: ["Visible for 7 days", "Standard search ranking"],
   },
   {
     value: "FEATURED" as const,
     name: "Featured Listing",
-    price: 500,
-    perks: ["Visible for 30 days", "Appears higher in search", "Featured badge"],
+    price: 700,
+    perks: ["Visible for 14 days", "Appears higher in search", "Featured badge"],
   },
   {
     value: "CLEARANCE" as const,
-    name: "Graduation Clearance",
-    price: 1500,
-    perks: ["Multiple items promoted", "Featured visibility", "Clearance badge"],
+    name: "Clearance Listing",
+    price: 2000,
+    perks: ["Visible for 30 days", "Multiple items promoted", "Featured visibility", "Clearance badge"],
   },
 ];
+
+export const COMING_SOON_LISTING_PLANS = [
+  { name: "Store", description: "A dedicated storefront for regular sellers." },
+  { name: "Vendor", description: "Tools for managing a larger catalogue." },
+] as const;
 
 export function universityLabel(value: string | null | undefined) {
   return UNIVERSITIES.find((u) => u.value === value)?.label ?? value ?? "";

@@ -14,7 +14,7 @@ import { CATEGORIES, CONDITIONS, LIVING_TYPES, UNIVERSITIES } from "@/lib/consta
 import type { Database } from "@/lib/database.types";
 
 type Listing = Database["public"]["Tables"]["listings"]["Row"];
-type Uni = "UNILORIN" | "AL_HIKMAH" | "KWASU";
+type Uni = "UNILORIN" | "AL_HIKMAH" | "KWASU" | "UNIOSUN";
 type Living = "SCHOOL_HOSTEL" | "OFF_CAMPUS_HOSTEL" | "PRIVATE_APARTMENT";
 type Cond = "NEW" | "LIKE_NEW" | "GOOD" | "FAIR";
 
@@ -24,7 +24,7 @@ const schema = z.object({
   category: z.string().min(1, "Pick a category"),
   condition: z.enum(["NEW", "LIKE_NEW", "GOOD", "FAIR"]),
   price: z.coerce.number().positive("Enter a price above zero").max(100_000_000),
-  university: z.enum(["UNILORIN", "AL_HIKMAH", "KWASU"]),
+  university: z.enum(["UNILORIN", "AL_HIKMAH", "KWASU", "UNIOSUN"]),
   living_type: z.enum(["SCHOOL_HOSTEL", "OFF_CAMPUS_HOSTEL", "PRIVATE_APARTMENT"]),
   hostel_area: z.string().trim().min(2, "Say where the item can be seen").max(80),
 });

@@ -88,7 +88,7 @@ export default function Messages() {
         }
         renderItem={({ item: conversation }) => {
           const listing = conversation.message.listing_id ? listingById.get(conversation.message.listing_id) : undefined;
-              const unread = conversation.unreadCount > 0;
+          const unread = conversation.unreadCount > 0;
           return (
             <Pressable
               onPress={() => router.push({ pathname: "/messages/[id]", params: { id: conversation.message.listing_id ?? "general", receiverId: conversation.otherId } })}

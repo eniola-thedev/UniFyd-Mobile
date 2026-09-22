@@ -15,11 +15,11 @@ import { Label, Card } from "@/components/ui/card";
 import { Select } from "@/components/ui/select";
 import { UNIVERSITIES, universityLabel } from "@/lib/constants";
 
-type Uni = "UNILORIN" | "AL_HIKMAH" | "KWASU";
+type Uni = "UNILORIN" | "AL_HIKMAH" | "KWASU" | "UNIOSUN";
 
 const schema = z.object({
   full_name: z.string().trim().min(2, "Enter the name printed on your ID card").max(80),
-  university: z.enum(["UNILORIN", "AL_HIKMAH", "KWASU"]),
+  university: z.enum(["UNILORIN", "AL_HIKMAH", "KWASU", "UNIOSUN"]),
   department: z.string().trim().min(2, "Enter your department").max(80),
   level: z.string().trim().min(1, "Enter your level").max(10),
   matric_number: z.string().trim().min(3, "Enter your matric number").max(30),

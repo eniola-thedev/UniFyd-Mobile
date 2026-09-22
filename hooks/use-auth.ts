@@ -25,9 +25,21 @@ export function useAuth() {
   return { session, user, loading };
 }
 
+/** Claims a stored referral code in the background. Never blocks the UI. */
 async function claimStoredReferral() {
-  const code = await AsyncStorage.getItem("unifyd-referral-code");
-  if (!code) return;
-  const { error } = await supabase.rpc("claim_referral", { p_code: code });
-  if (!error) await AsyncStorage.removeItem("unifyd-referral-code");
+  try {
+    const code = await AsyncStorage.getItem("unifyd-referral-code");
+    if (!code) return;
+    // Run in the background with a timeout so a slow RPC can never hang the app.
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 8000);
+    try {
+      const { error } = await supabase.rpc("claim_referral", { p_code: code });
+      if (!error) await AsyncStorage.removeItem("unifyd-referral-code");
+    } finally {
+      clearTimeout(timer);
+    }
+  } catch {
+    // Ignore - referral claiming is best-effort.
+  }
 }

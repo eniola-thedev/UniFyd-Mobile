@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { Alert, View, Text, ScrollView, Pressable } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import * as WebBrowser from "expo-web-browser";
 import { Flag, Heart, X } from "lucide-react-native";
 import { supabase } from "@/lib/supabase";
 import { useSession } from "@/hooks/auth-context";
@@ -28,6 +29,7 @@ export default function ListingDetail() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { user } = useSession();
   const router = useRouter();
+  const queryClient = useQueryClient();
   const [active, setActive] = useState(0);
   const { savedIds, toggleSaved, isToggling } = useSavedListings();
   const toast = useToast();
@@ -39,6 +41,7 @@ export default function ListingDetail() {
   const [reportReason, setReportReason] = useState("SCAM");
   const [reportDescription, setReportDescription] = useState("");
   const [sendingReport, setSendingReport] = useState(false);
+  const [paying, setPaying] = useState(false);
 
   const { data: listing, isLoading } = useQuery({
     queryKey: ["listing", id],
@@ -88,6 +91,7 @@ export default function ListingDetail() {
 
   async function submitOffer() {
     if (!user) return toast.error("Sign in to make an offer");
+    if (!listing) return toast.error("Listing not available");
     const amount = Number(offerAmount.replace(/,/g, ""));
     if (!Number.isFinite(amount) || amount <= 0) return toast.error("Enter a valid offer amount");
     if (!offerMessage.trim()) return toast.error("Add a short message with your offer");
@@ -103,6 +107,7 @@ export default function ListingDetail() {
 
   async function submitReport() {
     if (!user) return toast.error("Sign in to report a listing");
+    if (!listing) return toast.error("Listing not available");
     setSendingReport(true);
     const { error } = await supabase.from("reports").insert({
       listing_id: listing.id,
@@ -116,6 +121,37 @@ export default function ListingDetail() {
     setReportOpen(false);
     setReportDescription("");
     toast.success("Report submitted for review");
+  }
+
+  async function completePayment() {
+    if (!user) return toast.error("Sign in to complete payment");
+    if (!listing) return toast.error("Listing not available");
+    setPaying(true);
+    try {
+      const { data: checkout, error: checkoutError } = await supabase.functions.invoke("create-listing-payment", {
+        body: { listingId: listing.id },
+      });
+      if (checkoutError) throw checkoutError;
+      if (checkout?.free) {
+        await queryClient.invalidateQueries({ queryKey: ["listing", id] });
+        return toast.success("Your free listing is now live for 3 days.");
+      }
+      if (!checkout?.authorizationUrl || !checkout?.reference || !checkout?.returnUrl) {
+        throw new Error("Could not start the payment checkout");
+      }
+      const result = await WebBrowser.openAuthSessionAsync(checkout.authorizationUrl, checkout.returnUrl);
+      if (result.type !== "success") return toast.error("Payment was cancelled. Your listing is still saved.");
+      const { error: verificationError } = await supabase.functions.invoke("verify-listing-payment", {
+        body: { reference: checkout.reference },
+      });
+      if (verificationError) throw verificationError;
+      await queryClient.invalidateQueries({ queryKey: ["listing", id] });
+      toast.success("Payment confirmed. Your listing is now live.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not complete payment");
+    } finally {
+      setPaying(false);
+    }
   }
 
   return (
@@ -210,9 +246,12 @@ export default function ListingDetail() {
 
       <View className="mt-6 flex-row flex-wrap gap-3">
         {isOwner ? (
-          <Button variant="outline" onPress={() => router.push("/my-listings")}>
-            Manage my listings
-          </Button>
+          <>
+            {listing.status === "PAYMENT_PENDING" && <Button onPress={completePayment} loading={paying}>{listing.plan === "FREE" ? "Publish free listing" : "Pay to publish"}</Button>}
+            <Button variant="outline" onPress={() => router.push("/my-listings")}>
+              Manage my listings
+            </Button>
+          </>
         ) : (
           <>
             {listing.negotiable && (

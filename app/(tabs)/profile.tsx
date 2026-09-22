@@ -18,7 +18,7 @@ import { UNIVERSITIES, universityLabel } from "@/lib/constants";
 
 const profileSchema = z.object({
   full_name: z.string().trim().min(2, "Enter your full name").max(80),
-  university: z.enum(["UNILORIN", "AL_HIKMAH", "KWASU"]),
+  university: z.enum(["UNILORIN", "AL_HIKMAH", "KWASU", "UNIOSUN"]),
   department: z.string().trim().min(2, "Enter your department").max(80),
   level: z.string().trim().min(1, "Enter your level").max(10),
   matric_number: z.string().trim().min(3, "Enter your matric number").max(30),
@@ -96,6 +96,16 @@ export default function Profile() {
     setEditing(false);
     toast.success("Profile updated");
   }
+
+  const { data: pendingCount = 0 } = useQuery({
+    queryKey: ["admin-pending-verifications"],
+    enabled: isAdmin === true,
+    queryFn: async () => {
+      const { count, error } = await supabase.from("verifications").select("id", { count: "exact", head: true }).eq("status", "PENDING");
+      if (error) throw error;
+      return count ?? 0;
+    },
+  });
 
   const rows: [string, string | null | undefined][] = [
     ["University", universityLabel(p?.university)],
@@ -193,7 +203,17 @@ export default function Profile() {
 
       {isAdmin && (
         <View>
-          <Button variant="outline" className="mt-4" onPress={() => router.push("/admin/verifications")}>Review verifications</Button>
+          <Button variant="outline" className="mt-4" onPress={() => router.push("/admin/verifications")}>
+            <View className="flex-row items-center gap-2">
+              <ShieldAlert size={16} color="#1B2436" />
+              <Text className="font-semibold text-foreground">Review verifications</Text>
+              {pendingCount > 0 && (
+                <View className="ml-1 rounded-full bg-destructive px-2 py-0.5">
+                  <Text className="text-xs font-bold text-destructive-foreground">{pendingCount > 99 ? "99+" : pendingCount}</Text>
+                </View>
+              )}
+            </View>
+          </Button>
           <Button variant="outline" className="mt-3" onPress={() => router.push("/admin/reports")}>Review listing reports</Button>
         </View>
       )}

@@ -1,14 +1,15 @@
 import { useState } from "react";
-import { View, Text, ScrollView, Pressable, KeyboardAvoidingView, Platform } from "react-native";
-import { Link } from "expo-router";
+import { View, Text, ScrollView, Pressable, KeyboardAvoidingView, Platform, Image } from "react-native";
+import { Link, useRouter } from "expo-router";
 import * as Linking from "expo-linking";
-import { Eye, EyeOff } from "lucide-react-native";
+import { Eye, EyeOff, Fingerprint, ScanFace } from "lucide-react-native";
 import { z } from "zod";
 import { supabase } from "@/lib/supabase";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/card";
 import { useToast } from "@/components/ui/toast";
+import { useBiometrics } from "@/hooks/use-biometrics";
 
 const signInSchema = z.object({
   email: z.string().trim().email("Enter a valid email"),
@@ -17,11 +18,13 @@ const signInSchema = z.object({
 
 export default function SignIn() {
   const toast = useToast();
+  const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [showForgot, setShowForgot] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const biometrics = useBiometrics();
 
   async function onSubmit() {
     const parsed = signInSchema.safeParse({ email, password });
@@ -31,6 +34,24 @@ export default function SignIn() {
     setLoading(false);
     if (error) return toast.error(error.message);
     toast.success("Welcome back!");
+  }
+
+  async function handleBiometricSignIn() {
+    if (!biometrics.enrolledEmail) return;
+    const ok = await biometrics.authenticate("Confirm your identity to sign in to UniFyd");
+    if (!ok) return;
+    setLoading(true);
+    try {
+      // Restore the persisted Supabase session (stored securely by expo-secure-store).
+      const { data: sessionData } = await supabase.auth.getSession();
+      if (sessionData.session) {
+        router.replace("/(tabs)");
+        return;
+      }
+      toast.error("No saved session. Sign in with your password first.");
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function handleForgot() {
@@ -43,16 +64,29 @@ export default function SignIn() {
     setShowForgot(false);
   }
 
+  // Component references used in JSX must be capitalized, otherwise React
+  // treats them as literal host tags (e.g. <biometricicon>) and throws an
+  // "invalid element type" error at render time.
+  const BiometricIcon = biometrics.biometricType === "FACE_ID" || biometrics.biometricType === "FACE_RECOGNITION"
+    ? ScanFace
+    : Fingerprint;
+  const biometricLabel = biometrics.getBiometricLabel(biometrics.biometricType);
+
   return (
     <KeyboardAvoidingView className="flex-1 bg-background" behavior={Platform.OS === "ios" ? "padding" : undefined}>
       <ScrollView contentContainerClassName="flex-grow justify-center px-6 py-10" keyboardShouldPersistTaps="handled">
-        <View className="mb-8 flex-row items-center gap-2 self-center">
-          <View className="h-10 w-10 items-center justify-center rounded-xl bg-primary">
-            <Text className="text-lg font-bold text-primary-foreground">U</Text>
-          </View>
+        <View className="mb-8 self-center">
           <Text className="text-lg font-bold text-foreground">
             UniFyd <Text className="text-primary">Market</Text>
           </Text>
+        </View>
+
+        <View style={{ alignItems: "center", justifyContent: "center", marginBottom: 20 }}>
+          <Image
+            source={require("../../assets/Sign in Illustration.png")}
+            style={{ width: 250, height: 210 }}
+            resizeMode="contain"
+          />
         </View>
 
         <Text className="text-2xl font-bold text-foreground">{showForgot ? "Reset your password" : "Welcome back"}</Text>
@@ -95,6 +129,19 @@ export default function SignIn() {
           <Button onPress={showForgot ? handleForgot : onSubmit} loading={loading}>
             {showForgot ? "Send reset link" : "Sign in"}
           </Button>
+
+          {!showForgot && biometrics.isEnabled && biometrics.enrolledEmail && (
+            <Button
+              variant="outline"
+              loading={loading}
+              onPress={handleBiometricSignIn}
+            >
+              <View className="flex-row items-center gap-2">
+                {BiometricIcon ? <BiometricIcon size={18} color="#149A6B" /> : null}
+                <Text className="font-semibold text-foreground">Sign in with {biometricLabel}</Text>
+              </View>
+            </Button>
+          )}
           <Pressable onPress={() => setShowForgot((v) => !v)}>
             <Text className="text-center text-sm text-muted-foreground">
               {showForgot ? "Back to sign in" : "Forgot password?"}

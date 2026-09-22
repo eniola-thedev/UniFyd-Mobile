@@ -157,11 +157,16 @@ export default function AdminVerifications() {
   }
 
   const profileById = new Map((verifications?.profiles ?? []).map((profile) => [profile.id, profile]));
+  const pendingCount = verifications?.rows.length ?? 0;
   return (
     <ScrollView className="flex-1 bg-background" contentContainerClassName="gap-4 p-4 pb-12">
       <View>
         <Text className="text-2xl font-bold text-foreground">Verification review</Text>
-        <Text className="mt-1 text-sm text-muted-foreground">Review student IDs before sellers can publish listings.</Text>
+        <Text className="mt-1 text-sm text-muted-foreground">
+          {pendingCount > 0
+            ? `${pendingCount} student${pendingCount === 1 ? "" : "s"} waiting for review.`
+            : "Review student IDs before sellers can publish listings."}
+        </Text>
       </View>
       {(verifications?.rows ?? []).length === 0 ? (
         <View className="items-center rounded-2xl border border-dashed border-border p-10">

@@ -6,6 +6,7 @@ import { SafeAreaProvider } from "react-native-safe-area-context";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AuthProvider, useSession } from "@/hooks/auth-context";
+import { ThemeProvider, useTheme } from "@/hooks/use-theme";
 import { ToastProvider } from "@/components/ui/toast";
 
 const queryClient = new QueryClient();
@@ -77,13 +78,18 @@ function RootNavigator() {
       <Stack.Screen name="invite/[code]" options={{ headerShown: false }} />
       <Stack.Screen name="offers/[id]" options={{ headerShown: true, title: "Offers" }} />
       <Stack.Screen name="referrals" options={{ headerShown: true, title: "Invite & earn" }} />
+      <Stack.Screen name="about" options={{ headerShown: true, title: "About UniFyd" }} />
+      <Stack.Screen name="terms-of-service" options={{ headerShown: true, title: "Terms of Service" }} />
+      <Stack.Screen name="privacy-policy" options={{ headerShown: true, title: "Privacy Policy" }} />
+      <Stack.Screen name="privacy-settings" options={{ headerShown: true, title: "Privacy & security" }} />
     </Stack>
   );
 }
 
-export default function RootLayout() {
+function ThemedRoot() {
+  const { resolved } = useTheme();
   return (
-    <GestureHandlerRootView className="flex-1">
+    <GestureHandlerRootView className={`flex-1 ${resolved === "dark" ? "dark" : ""}`}>
       <SafeAreaProvider>
         <QueryClientProvider client={queryClient}>
           <AuthProvider>
@@ -94,5 +100,13 @@ export default function RootLayout() {
         </QueryClientProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
+  );
+}
+
+export default function RootLayout() {
+  return (
+    <ThemeProvider>
+      <ThemedRoot />
+    </ThemeProvider>
   );
 }

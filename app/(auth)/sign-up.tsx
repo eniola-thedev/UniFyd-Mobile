@@ -1,6 +1,6 @@
 import { useState } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { View, Text, ScrollView, Pressable, KeyboardAvoidingView, Platform } from "react-native";
+import { View, Text, ScrollView, Pressable, KeyboardAvoidingView, Platform, Image } from "react-native";
 import { Link, useRouter } from "expo-router";
 import { Eye, EyeOff } from "lucide-react-native";
 import { z } from "zod";
@@ -17,7 +17,7 @@ const signUpSchema = z.object({
   email: z.string().trim().email("Enter a valid email").max(255),
   phone: z.string().trim().min(7, "Enter your phone number").max(20),
   password: z.string().min(6, "Password must be at least 6 characters").max(72),
-  university: z.enum(["UNILORIN", "AL_HIKMAH", "KWASU"]),
+  university: z.enum(["UNILORIN", "AL_HIKMAH", "KWASU", "UNIOSUN"]),
   department: z.string().trim().min(2).max(80),
   level: z.string().trim().min(1).max(10),
   matric_number: z.string().trim().min(3).max(30),
@@ -46,7 +46,7 @@ export default function SignUp() {
     setLoading(true);
     const { data: p } = parsed;
     const referralCode = await AsyncStorage.getItem("unifyd-referral-code");
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email: p.email,
       password: p.password,
       options: {
@@ -57,13 +57,25 @@ export default function SignUp() {
           department: p.department,
           level: p.level,
           matric_number: p.matric_number,
-          referral_code: referralCode,
+          referral_code: referralCode ?? undefined,
         },
       },
     });
     setLoading(false);
-    if (error) return toast.error(error.message);
+    if (error) {
+      const message = error.message.toLowerCase();
+      return toast.error(
+        message.includes("already") || message.includes("duplicate") || message.includes("database error")
+          ? "An account with this email or matric number already exists. Sign in instead."
+          : error.message,
+      );
+    }
     await AsyncStorage.removeItem("unifyd-referral-code");
+    // If email confirmation is required, the session will be null and the user
+    // needs to confirm before they can access the app.
+    if (!data.session) {
+      return toast.success("Account created! Check your email to confirm your address, then sign in.");
+    }
     toast.success("Account created, welcome to UniFyd Market!");
     router.replace("/verify");
   }
@@ -71,6 +83,14 @@ export default function SignUp() {
   return (
     <KeyboardAvoidingView className="flex-1 bg-background" behavior={Platform.OS === "ios" ? "padding" : undefined}>
       <ScrollView contentContainerClassName="px-6 py-10" keyboardShouldPersistTaps="handled">
+        <View style={{ alignItems: "center", justifyContent: "center", marginBottom: 20 }}>
+          <Image
+            source={require("../../assets/Sign up illustration.png")}
+            style={{ width: 250, height: 210 }}
+            resizeMode="contain"
+          />
+        </View>
+
         <Text className="text-2xl font-bold text-foreground">Create your student account</Text>
         <Text className="mt-1 text-sm text-muted-foreground">Free to join. You'll verify your student ID next.</Text>
 

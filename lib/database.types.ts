@@ -130,32 +130,41 @@ export type Database = {
       offers: {
         Row: {
           amount: number
+          buyer_confirmed: boolean
           buyer_id: string
           created_at: string
+          deal_confirmed_at: string | null
           id: string
           listing_id: string
           message: string | null
           parent_offer_id: string | null
+          seller_confirmed: boolean
           status: Database["public"]["Enums"]["offer_status"]
         }
         Insert: {
           amount: number
+          buyer_confirmed?: boolean
           buyer_id: string
           created_at?: string
+          deal_confirmed_at?: string | null
           id?: string
           listing_id: string
           message?: string | null
           parent_offer_id?: string | null
+          seller_confirmed?: boolean
           status?: Database["public"]["Enums"]["offer_status"]
         }
         Update: {
           amount?: number
+          buyer_confirmed?: boolean
           buyer_id?: string
           created_at?: string
+          deal_confirmed_at?: string | null
           id?: string
           listing_id?: string
           message?: string | null
           parent_offer_id?: string | null
+          seller_confirmed?: boolean
           status?: Database["public"]["Enums"]["offer_status"]
         }
         Relationships: [
@@ -566,7 +575,7 @@ export type Database = {
     Enums: {
       app_role: "admin" | "user"
       listing_condition: "NEW" | "LIKE_NEW" | "GOOD" | "FAIR"
-      listing_plan: "BASIC" | "FEATURED" | "CLEARANCE"
+      listing_plan: "FREE" | "BASIC" | "FEATURED" | "CLEARANCE"
       listing_status:
         | "DRAFT"
         | "PAYMENT_PENDING"
@@ -583,7 +592,7 @@ export type Database = {
         | "WITHDRAWN"
       payment_status: "PENDING" | "SUCCESSFUL" | "FAILED" | "CANCELLED"
       report_status: "OPEN" | "REVIEWING" | "RESOLVED" | "DISMISSED"
-      university: "UNILORIN" | "AL_HIKMAH" | "KWASU"
+      university: "UNILORIN" | "AL_HIKMAH" | "KWASU" | "UNIOSUN"
       verification_status: "PENDING" | "APPROVED" | "REJECTED"
     }
     CompositeTypes: {
@@ -714,7 +723,7 @@ export const Constants = {
     Enums: {
       app_role: ["admin", "user"],
       listing_condition: ["NEW", "LIKE_NEW", "GOOD", "FAIR"],
-      listing_plan: ["BASIC", "FEATURED", "CLEARANCE"],
+      listing_plan: ["FREE", "BASIC", "FEATURED", "CLEARANCE"],
       listing_status: [
         "DRAFT",
         "PAYMENT_PENDING",
@@ -733,7 +742,7 @@ export const Constants = {
       ],
       payment_status: ["PENDING", "SUCCESSFUL", "FAILED", "CANCELLED"],
       report_status: ["OPEN", "REVIEWING", "RESOLVED", "DISMISSED"],
-      university: ["UNILORIN", "AL_HIKMAH", "KWASU"],
+      university: ["UNILORIN", "AL_HIKMAH", "KWASU", "UNIOSUN"],
       verification_status: ["PENDING", "APPROVED", "REJECTED"],
     },
   },
