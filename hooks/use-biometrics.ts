@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { Platform } from "react-native";
 import * as LocalAuthentication from "expo-local-authentication";
 import * as SecureStore from "expo-secure-store";
 
@@ -27,16 +28,18 @@ export function useBiometrics() {
   });
 
   useEffect(() => {
+    if (Platform.OS === "web") return;
+
     (async () => {
       const compatible = await LocalAuthentication.hasHardwareAsync();
       const enrolled = await LocalAuthentication.isEnrolledAsync();
-      const types = await LocalAuthentication.getSupportedAuthenticationTypesAsync();
+      const types = await LocalAuthentication.supportedAuthenticationTypesAsync();
 
       let type: BiometricType = null;
       if (enrolled && compatible) {
-        if (types.includes(LocalAuthentication.AuthenticationType.FACE_ID)) type = "FACE_ID";
-        else if (types.includes(LocalAuthentication.AuthenticationType.FINGERPRINT)) type = "FINGERPRINT";
-        else if (types.includes(LocalAuthentication.AuthenticationType.FACE_RECOGNITION)) type = "FACE_RECOGNITION";
+        if (types.includes(LocalAuthentication.AuthenticationType.FACIAL_RECOGNITION)) {
+          type = Platform.OS === "ios" ? "FACE_ID" : "FACE_RECOGNITION";
+        } else if (types.includes(LocalAuthentication.AuthenticationType.FINGERPRINT)) type = "FINGERPRINT";
         else if (types.includes(LocalAuthentication.AuthenticationType.IRIS)) type = "IRIS";
       }
 
@@ -58,7 +61,7 @@ export function useBiometrics() {
         promptMessage,
         cancelLabel: "Cancel",
         fallbackLabel: "Use password",
-        requireFallback: false,
+        disableDeviceFallback: true,
       });
       return result.success;
     },

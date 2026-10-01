@@ -4,6 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, Eye, Trash2, X } from "lucide-react-native";
 import { supabase } from "@/lib/supabase";
 import { useSession } from "@/hooks/auth-context";
+import { useAdminAccess } from "@/hooks/use-admin-access";
 import { useToast } from "@/components/ui/toast";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -15,17 +16,10 @@ type Listing = { id: string; title: string; status: string };
 
 export default function AdminReports() {
   const { user } = useSession();
+  const { isAdmin, isLoading: loadingRole } = useAdminAccess();
   const toast = useToast();
   const queryClient = useQueryClient();
   const [actionId, setActionId] = useState<string | null>(null);
-  const { data: isAdmin, isLoading: loadingRole } = useQuery({
-    queryKey: ["admin-role", user?.id], enabled: !!user,
-    queryFn: async () => {
-      const { data, error } = await supabase.from("user_roles").select("id").eq("user_id", user!.id).eq("role", "admin").maybeSingle();
-      if (error) throw error;
-      return !!data;
-    },
-  });
   const { data, isLoading } = useQuery({
     queryKey: ["admin-reports"], enabled: isAdmin === true,
     queryFn: async () => {

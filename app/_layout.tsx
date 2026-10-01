@@ -1,11 +1,12 @@
 import "../global.css";
 import { useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Animated, Text, View } from "react-native";
+import { ActivityIndicator, Animated, Platform, Text, View } from "react-native";
 import { Stack, useRouter, useSegments } from "expo-router";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AuthProvider, useSession } from "@/hooks/auth-context";
+import { useAdminAccess } from "@/hooks/use-admin-access";
 import { ThemeProvider, useTheme } from "@/hooks/use-theme";
 import { ToastProvider } from "@/components/ui/toast";
 
@@ -13,6 +14,7 @@ const queryClient = new QueryClient();
 
 function RootNavigator() {
   const { user, loading } = useSession();
+  const { isAdmin, isLoading: loadingAdminAccess } = useAdminAccess();
   const segments = useSegments();
   const router = useRouter();
   const [launching, setLaunching] = useState(true);
@@ -20,6 +22,11 @@ function RootNavigator() {
   const logoScale = useRef(new Animated.Value(0.78)).current;
 
   useEffect(() => {
+    if (Platform.OS === "web") {
+      setLaunching(false);
+      return;
+    }
+
     Animated.sequence([
       Animated.parallel([
         Animated.timing(logoOpacity, { toValue: 1, duration: 350, useNativeDriver: true }),
@@ -32,14 +39,21 @@ function RootNavigator() {
 
   useEffect(() => {
     if (loading || launching) return;
+    if (user && loadingAdminAccess) return;
     const inAuthGroup = segments[0] === "(auth)";
+    const inOnboarding = segments[0] === "onboarding";
+    const inAdminGroup = segments[0] === "admin";
 
-    if (!user && !inAuthGroup) {
-      router.replace("/(auth)/sign-in");
-    } else if (user && inAuthGroup) {
+    if (user && isAdmin && !inAdminGroup) {
+      router.replace("/admin");
+    } else if (user && !isAdmin && inAdminGroup) {
       router.replace("/(tabs)");
+    } else if (user && (inAuthGroup || inOnboarding)) {
+      router.replace("/(tabs)");
+    } else if (!user && !inAuthGroup && !inOnboarding) {
+      router.replace("/onboarding");
     }
-  }, [user, loading, launching, segments]);
+  }, [user, isAdmin, loadingAdminAccess, loading, launching, segments]);
 
   if (launching) {
     return (
@@ -65,6 +79,7 @@ function RootNavigator() {
 
   return (
     <Stack screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="onboarding" />
       <Stack.Screen name="(auth)" />
       <Stack.Screen name="(tabs)" />
       <Stack.Screen name="listing/[id]" options={{ headerShown: true, title: "Listing" }} />
@@ -75,6 +90,7 @@ function RootNavigator() {
       <Stack.Screen name="admin/reports" options={{ headerShown: true, title: "Listing reports" }} />
       <Stack.Screen name="reset-password" options={{ headerShown: false }} />
       <Stack.Screen name="settings" options={{ headerShown: true, title: "Settings" }} />
+      <Stack.Screen name="feedback" options={{ headerShown: true, title: "Share feedback" }} />
       <Stack.Screen name="invite/[code]" options={{ headerShown: false }} />
       <Stack.Screen name="offers/[id]" options={{ headerShown: true, title: "Offers" }} />
       <Stack.Screen name="referrals" options={{ headerShown: true, title: "Invite & earn" }} />

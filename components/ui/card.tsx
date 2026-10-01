@@ -15,11 +15,20 @@ export function Label({ children, className }: { children: React.ReactNode; clas
   return <Text className={`mb-1.5 text-sm font-medium text-foreground ${className ?? ""}`}>{children}</Text>;
 }
 
-export function Switch({ value, onValueChange }: { value: boolean; onValueChange: (v: boolean) => void }) {
+export function Switch({
+  value,
+  onValueChange,
+  disabled = false,
+}: {
+  value: boolean;
+  onValueChange: (v: boolean) => void;
+  disabled?: boolean;
+}) {
   return (
     <RNSwitch
       value={value}
       onValueChange={onValueChange}
+      disabled={disabled}
       trackColor={{ false: "#E7E8EC", true: "#149A6B" }}
       thumbColor="#FFFFFF"
     />

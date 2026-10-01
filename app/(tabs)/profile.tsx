@@ -4,7 +4,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { z } from "zod";
-import { BadgeCheck, Bell, Settings, ShieldAlert, LogOut, Pencil } from "lucide-react-native";
+import { BadgeCheck, Bell, LayoutDashboard, Settings, ShieldAlert, LogOut, Pencil } from "lucide-react-native";
 import { supabase } from "@/lib/supabase";
 import { useSession } from "@/hooks/auth-context";
 import { Badge } from "@/components/ui/badge";
@@ -14,6 +14,7 @@ import { Input, Textarea } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { useToast } from "@/components/ui/toast";
 import { usePushNotifications } from "@/hooks/use-push-notifications";
+import { useAdminAccess } from "@/hooks/use-admin-access";
 import { UNIVERSITIES, universityLabel } from "@/lib/constants";
 
 const profileSchema = z.object({
@@ -34,6 +35,7 @@ export default function Profile() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const toast = useToast();
+  const { isAdmin } = useAdminAccess();
   const { enabled: notificationsEnabled, registering: registeringNotifications, enableNotifications } = usePushNotifications(user?.id);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -56,15 +58,6 @@ export default function Profile() {
         supabase.from("verifications").select("status").eq("user_id", user!.id).maybeSingle(),
       ]);
       return { profile: p, verified: v?.status === "APPROVED" };
-    },
-  });
-  const { data: isAdmin } = useQuery({
-    queryKey: ["admin-role", user?.id],
-    enabled: !!user,
-    queryFn: async () => {
-      const { data: role, error } = await supabase.from("user_roles").select("id").eq("user_id", user!.id).eq("role", "admin").maybeSingle();
-      if (error) throw error;
-      return !!role;
     },
   });
   const p = data?.profile;
@@ -202,20 +195,17 @@ export default function Profile() {
       )}
 
       {isAdmin && (
-        <View>
-          <Button variant="outline" className="mt-4" onPress={() => router.push("/admin/verifications")}>
-            <View className="flex-row items-center gap-2">
-              <ShieldAlert size={16} color="#1B2436" />
-              <Text className="font-semibold text-foreground">Review verifications</Text>
-              {pendingCount > 0 && (
-                <View className="ml-1 rounded-full bg-destructive px-2 py-0.5">
-                  <Text className="text-xs font-bold text-destructive-foreground">{pendingCount > 99 ? "99+" : pendingCount}</Text>
-                </View>
-              )}
-            </View>
-          </Button>
-          <Button variant="outline" className="mt-3" onPress={() => router.push("/admin/reports")}>Review listing reports</Button>
-        </View>
+        <Button variant="outline" className="mt-4" onPress={() => router.push("/admin")}>
+          <View className="flex-row items-center gap-2">
+            <LayoutDashboard size={16} color="#1B2436" />
+            <Text className="font-semibold text-foreground">Open admin dashboard</Text>
+            {pendingCount > 0 && (
+              <View className="ml-1 rounded-full bg-destructive px-2 py-0.5">
+                <Text className="text-xs font-bold text-destructive-foreground">{pendingCount > 99 ? "99+" : pendingCount}</Text>
+              </View>
+            )}
+          </View>
+        </Button>
       )}
 
       <Button variant="outline" className="mt-4" onPress={() => router.push("/settings")}>

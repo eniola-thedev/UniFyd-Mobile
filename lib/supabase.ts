@@ -1,5 +1,7 @@
 import "react-native-url-polyfill/auto";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as SecureStore from "expo-secure-store";
+import { Platform } from "react-native";
 import { createClient, type SupabaseClientOptions } from "@supabase/supabase-js";
 import type { Database } from "./database.types";
 
@@ -56,7 +58,7 @@ const ChunkedSecureStore = {
 
 const options: SupabaseClientOptions<"public"> = {
   auth: {
-    storage: ChunkedSecureStore,
+    storage: Platform.OS === "web" ? AsyncStorage : ChunkedSecureStore,
     persistSession: true,
     autoRefreshToken: true,
     detectSessionInUrl: false,

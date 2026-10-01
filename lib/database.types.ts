@@ -337,6 +337,7 @@ export type Database = {
           id: string
           is_blocked: boolean
           level: string | null
+          message_notifications_enabled: boolean
           matric_number: string | null
           phone: string | null
           profile_image: string | null
@@ -353,6 +354,7 @@ export type Database = {
           id: string
           is_blocked?: boolean
           level?: string | null
+          message_notifications_enabled?: boolean
           matric_number?: string | null
           phone?: string | null
           profile_image?: string | null
@@ -369,6 +371,7 @@ export type Database = {
           id?: string
           is_blocked?: boolean
           level?: string | null
+          message_notifications_enabled?: boolean
           matric_number?: string | null
           phone?: string | null
           profile_image?: string | null
@@ -418,6 +421,30 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      user_feedback: {
+        Row: {
+          category: "GENERAL" | "FEATURE_REQUEST" | "BUG_REPORT"
+          created_at: string
+          id: string
+          message: string
+          user_id: string
+        }
+        Insert: {
+          category: "GENERAL" | "FEATURE_REQUEST" | "BUG_REPORT"
+          created_at?: string
+          id?: string
+          message: string
+          user_id: string
+        }
+        Update: {
+          category?: "GENERAL" | "FEATURE_REQUEST" | "BUG_REPORT"
+          created_at?: string
+          id?: string
+          message?: string
+          user_id?: string
+        }
+        Relationships: []
       }
       reviews: {
         Row: {

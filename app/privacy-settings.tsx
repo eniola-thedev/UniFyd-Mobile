@@ -54,8 +54,9 @@ export default function PrivacySettingsScreen() {
           style: "destructive",
           onPress: async () => {
             try {
-              const { error } = await supabase.auth.deleteUser();
+              const { error } = await supabase.functions.invoke("delete-account");
               if (error) throw error;
+              await supabase.auth.signOut({ scope: "local" });
               toast.success("Account deleted");
               router.replace("/(auth)/sign-in");
             } catch (err) {

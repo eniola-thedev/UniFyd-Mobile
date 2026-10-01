@@ -40,6 +40,16 @@ Deno.serve(async (request) => {
     return new Response("Missing message record", { status: 400 });
   }
 
+  const { data: recipient, error: preferenceError } = await admin
+    .from("profiles")
+    .select("message_notifications_enabled")
+    .eq("id", message.receiver_id)
+    .maybeSingle();
+  if (preferenceError) return Response.json({ error: preferenceError.message }, { status: 500 });
+  if (recipient && !recipient.message_notifications_enabled) {
+    return Response.json({ sent: 0, reason: "Message notifications are disabled" });
+  }
+
   const { data: tokens, error: tokenError } = await admin
     .from("push_tokens")
     .select("token")

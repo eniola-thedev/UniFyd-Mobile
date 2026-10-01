@@ -1,5 +1,16 @@
 # Supabase Edge Functions
 
+## Account deletion
+
+Deploy the authenticated function used by the mobile privacy settings screen:
+
+```bash
+supabase functions deploy delete-account
+```
+
+The function validates the caller's access token before using the service-role
+key to delete only that user's auth record and cascading user data.
+
 ## Paystack listing payments
 
 The mobile app creates a pending listing, opens Paystack Checkout, then calls a

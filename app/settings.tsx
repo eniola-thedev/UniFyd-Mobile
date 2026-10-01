@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Alert, Linking, Pressable, ScrollView, Share, Text, View } from "react-native";
 import { useRouter } from "expo-router";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Bell,
   BookOpen,
@@ -13,6 +13,7 @@ import {
   Info,
   KeyRound,
   LogOut,
+  MessageSquare,
   Moon,
   Palette,
   Shield,
@@ -56,7 +57,7 @@ function SettingRow({
       </View>
       <View className="flex-1">
         <Text className="font-medium text-foreground">{label}</Text>
-        {detail && <Text className="mt-0.5 text-xs text-muted-foreground">{detail}</Text>}
+        {detail?.trim() ? <Text className="mt-0.5 text-xs text-muted-foreground">{detail}</Text> : null}
       </View>
       {trailing ?? (onPress ? <ChevronRight size={18} color="#697182" /> : null)}
     </Pressable>
@@ -74,21 +75,25 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 
 export default function Settings() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const toast = useToast();
   const { user } = useSession();
-  const { enabled: notificationsEnabled, registering: registeringNotifications, enableNotifications } = usePushNotifications(user?.id);
+  const {
+    enabled: notificationsEnabled,
+    registering: registeringNotifications,
+    checking: checkingNotifications,
+    enableNotifications,
+    disableNotifications,
+  } = usePushNotifications(user?.id);
   const { mode: appearance, resolved, setMode: setAppearance } = useTheme();
   const biometrics = useBiometrics();
-  const [assignmentReminders, setAssignmentReminders] = useState(true);
-  const [examReminders, setExamReminders] = useState(true);
-  const [announcements, setAnnouncements] = useState(true);
-  const [messages, setMessages] = useState(true);
+  const [savingMessagePreference, setSavingMessagePreference] = useState(false);
 
   const { data: profile } = useQuery({
-    queryKey: ["profile", user?.id],
+    queryKey: ["settings-profile", user?.id],
     enabled: !!user,
     queryFn: async () => {
-      const { data, error } = await supabase.from("profiles").select("full_name, university, department, level, referral_code").eq("id", user!.id).maybeSingle();
+      const { data, error } = await supabase.from("profiles").select("full_name, university, department, level, referral_code, message_notifications_enabled").eq("id", user!.id).maybeSingle();
       if (error) throw error;
       return data;
     },
@@ -119,6 +124,27 @@ export default function Settings() {
     if (value === "dark") toast.success("Dark theme enabled");
     else if (value === "light") toast.success("Light theme enabled");
     else toast.success("Theme follows system");
+  }
+
+  async function togglePushNotifications(next: boolean) {
+    try {
+      if (next) await enableNotifications();
+      else await disableNotifications();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not update notification settings");
+    }
+  }
+
+  async function toggleMessageNotifications(next: boolean) {
+    if (!user || !profile) return;
+    setSavingMessagePreference(true);
+    const { error } = await supabase
+      .from("profiles")
+      .update({ message_notifications_enabled: next })
+      .eq("id", user.id);
+    setSavingMessagePreference(false);
+    if (error) return toast.error("Could not save message notification settings");
+    await queryClient.invalidateQueries({ queryKey: ["settings-profile", user.id] });
   }
 
   function showComingSoon(label: string) {
@@ -161,14 +187,30 @@ export default function Settings() {
         <SettingRow
           icon={Bell}
           label="Notifications"
-          detail={notificationsEnabled ? "Enabled on this device" : "Not enabled"}
-          onPress={() => enableNotifications().catch((error) => toast.error(error instanceof Error ? error.message : "Could not enable notifications"))}
-          trailing={<Switch value={notificationsEnabled} onValueChange={() => void enableNotifications().catch((error) => toast.error(error instanceof Error ? error.message : "Could not enable notifications"))} />}
+          detail={checkingNotifications ? "Checking this device..." : notificationsEnabled ? "Enabled on this device" : "Not enabled"}
+          trailing={
+            <Switch
+              value={notificationsEnabled}
+              onValueChange={(next) => void togglePushNotifications(next)}
+              disabled={checkingNotifications || registeringNotifications}
+            />
+          }
         />
-        <SettingRow icon={BookOpen} label="Assignment reminders" trailing={<Switch value={assignmentReminders} onValueChange={setAssignmentReminders} />} />
-        <SettingRow icon={BookOpen} label="Exam reminders" trailing={<Switch value={examReminders} onValueChange={setExamReminders} />} />
-        <SettingRow icon={Bell} label="Announcements" trailing={<Switch value={announcements} onValueChange={setAnnouncements} />} />
-        <SettingRow icon={Bell} label="Messages" trailing={<Switch value={messages} onValueChange={setMessages} />} />
+        <SettingRow icon={BookOpen} label="Assignment reminders" detail="Unavailable until assignment tracking is added" />
+        <SettingRow icon={BookOpen} label="Exam reminders" detail="Unavailable until exam tracking is added" />
+        <SettingRow icon={Bell} label="Announcements" detail="Announcement alerts are not available yet" />
+        <SettingRow
+          icon={MessageSquare}
+          label="Message notifications"
+          detail={profile ? (profile.message_notifications_enabled ? "On" : "Off") : "Loading preference..."}
+          trailing={
+            <Switch
+              value={profile?.message_notifications_enabled ?? true}
+              onValueChange={(next) => void toggleMessageNotifications(next)}
+              disabled={!profile || savingMessagePreference}
+            />
+          }
+        />
         <SettingRow
           icon={resolved === "dark" ? Moon : Sun}
           label="Appearance"
@@ -194,8 +236,8 @@ export default function Settings() {
             />
           }
         />
-        <SettingRow icon={Globe} label="Language" detail="English" onPress={() => showComingSoon("Additional languages")} />
-        <SettingRow icon={Smartphone} label="Data usage" detail="Standard image quality" onPress={() => showComingSoon("Data usage controls")} />
+        <SettingRow icon={Globe} label="Language" detail="English" />
+        <SettingRow icon={Smartphone} label="Data usage" detail="Standard image quality" />
       </Section>
 
       <Section title="Academic">
@@ -249,6 +291,7 @@ export default function Settings() {
 
       <Section title="Support">
         <SettingRow icon={CircleHelp} label="Help center" onPress={() => showComingSoon("Help center")} />
+        <SettingRow icon={MessageSquare} label="Share feedback" detail="Suggest a feature or tell us what you think" onPress={() => router.push("/feedback")} />
         <SettingRow icon={Info} label="Contact support" onPress={() => void Linking.openURL("mailto:support@unifyd.app")} />
         <SettingRow icon={Bug} label="Report a bug" onPress={reportProblem} />
         <SettingRow icon={Heart} label="Rate UniFyd" onPress={() => showComingSoon("App store rating")}/>

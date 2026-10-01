@@ -44,6 +44,12 @@ export default function Referrals() {
     };
   }, [data]);
 
+  const stats: { label: string; value: number; Icon: typeof Users }[] = [
+    { label: "Invited", value: summary.invited, Icon: Users },
+    { label: "Verified", value: summary.verified, Icon: Gift },
+    { label: "Qualified", value: summary.qualified, Icon: Copy },
+  ];
+
   async function shareInvite() {
     if (!data?.code) return toast.error("Your referral code is not ready yet");
     const link = `uninest://invite/${data.code}`;
@@ -67,8 +73,8 @@ export default function Referrals() {
       </Card>
 
       <View className="mt-4 flex-row gap-3">
-        {[["Invited", summary.invited, Users], ["Verified", summary.verified, Gift], ["Qualified", summary.qualified, Copy]].map(([label, value, Icon]) => (
-          <Card key={String(label)} className="flex-1 items-center p-3"><Icon size={17} color="#149A6B" /><Text className="mt-2 text-xl font-bold text-foreground">{value}</Text><Text className="text-xs text-muted-foreground">{label}</Text></Card>
+        {stats.map(({ label, value, Icon }) => (
+          <Card key={label} className="flex-1 items-center p-3"><Icon size={17} color="#149A6B" /><Text className="mt-2 text-xl font-bold text-foreground">{value}</Text><Text className="text-xs text-muted-foreground">{label}</Text></Card>
         ))}
       </View>
 
